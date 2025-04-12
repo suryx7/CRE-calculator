@@ -1,0 +1,38 @@
+export const unitFactors = {
+    SI: {
+        concentration: { factor: 1, unit: 'kmol/m³' },
+        time: { factor: 1, unit: 's' },
+        rateConstant: (n) => ({ factor: 1, unit: `(kmol/m³)^${n - 1}·s⁻¹` }),
+        temperature: { factor: 1, unit: 'K' },
+        volume: { factor: 1, unit: 'm³' },
+        pressure: { factor: 1, unit: 'Pa' },
+        activationEnergy: { factor: 1, unit: 'J/mol' },
+        heatOfReaction: { factor: 1, unit: 'J/mol' },
+        heatCapacity: { factor: 1, unit: 'J/kg·K' },
+        heatTransferCoefficient: { factor: 1, unit: 'W/m²·K' },
+    },
+    CGS: {
+        concentration: { factor: 1e-3, unit: 'mol/cm³' },
+        time: { factor: 1, unit: 's' },
+        rateConstant: (n) => ({ factor: 1, unit: `(mol/cm³)^${n - 1}·s⁻¹` }),
+        temperature: { factor: 1, unit: 'K' },
+        volume: { factor: 1e6, unit: 'cm³' },
+        pressure: { factor: 10, unit: 'dyne/cm²' },
+        activationEnergy: { factor: 1e7, unit: 'erg/mol' },
+        heatOfReaction: { factor: 1e7, unit: 'erg/mol' },
+        heatCapacity: { factor: 1e7, unit: 'erg/g·K' },
+        heatTransferCoefficient: { factor: 1e4, unit: 'erg/cm²·s·K' },
+    },
+    Imperial: {
+        concentration: { factor: 0.008345, unit: 'lbmol/ft³' },
+        time: { factor: 1, unit: 's' },
+        rateConstant: (n) => ({ factor: 1, unit: `(lbmol/ft³)^${n - 1}·s⁻¹` }),
+        temperature: { factor: 1.8, unit: '°R' },
+        volume: { factor: 35.3147, unit: 'ft³' },
+        pressure: { factor: 0.000145, unit: 'psi' },
+        activationEnergy: { factor: 0.0009478, unit: 'BTU/lbmol' },
+        heatOfReaction: { factor: 0.0009478, unit: 'BTU/lbmol' },
+        heatCapacity: { factor: 0.0002388, unit: 'BTU/lb·°R' },
+        heatTransferCoefficient: { factor: 0.1761, unit: 'BTU/ft²·h·°R' },
+    }
+};
