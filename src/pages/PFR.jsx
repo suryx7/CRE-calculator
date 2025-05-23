@@ -157,67 +157,6 @@ function PFR() {
     }
   }
 
-  const calculateTemperatureProfile = (e) => {
-    e.preventDefault()
-    setError('')
-    
-    try {
-      const {
-        initialConcentration,
-        flowRate,
-        volume,
-        rateConstant,
-        reactionOrder,
-        temperature,
-        heatOfReaction,
-        heatCapacity,
-        heatTransferCoefficient,
-        coolingTemperature
-      } = formData
-
-      // Convert inputs to numbers
-      const C0 = parseFloat(initialConcentration)
-      const F = parseFloat(flowRate)
-      const V = parseFloat(volume)
-      const k = parseFloat(rateConstant)
-      const n = parseFloat(reactionOrder)
-      const T0 = parseFloat(temperature)
-      const Hr = parseFloat(heatOfReaction)
-      const Cp = parseFloat(heatCapacity)
-      const U = parseFloat(heatTransferCoefficient)
-      const Tc = parseFloat(coolingTemperature)
-
-      // Validate inputs
-      if (isNaN(C0) || isNaN(F) || isNaN(V) || isNaN(k) || isNaN(n) || isNaN(T0) || 
-          isNaN(Hr) || isNaN(Cp) || isNaN(U) || isNaN(Tc)) {
-        throw new Error('Please enter valid numbers for all fields')
-      }
-
-      // Calculate residence time
-      const tau = V / F
-
-      // Calculate conversion (simplified for temperature profile)
-      const conversion = 1 - Math.exp(-k * tau)
-
-      // Calculate temperature change
-      // For PFR: Q = F*rho*Cp*(T - T0) = -Hr*F*C0*X - U*A*(T - Tc)
-      // Simplified approach:
-      const reactionHeat = Hr * C0 * conversion
-      const coolingHeat = U * (T0 - Tc) * tau / 60 // Convert to hours
-      
-      const finalTemperature = T0 + (reactionHeat / (Cp * 1000)) - (coolingHeat / (Cp * 1000))
-
-      setResult({
-        initialTemperature: T0.toFixed(1),
-        finalTemperature: finalTemperature.toFixed(1),
-        temperatureChange: (finalTemperature - T0).toFixed(1),
-        units: getUnit('temperature')
-      })
-    } catch (err) {
-      setError(err.message)
-      setResult(null)
-    }
-  }
 
   const calculateRequiredVolume = (e) => {
     e.preventDefault()
@@ -358,7 +297,7 @@ function PFR() {
             >
               <option value="1">First Order</option>
               <option value="2">Second Order</option>
-              <option value="0.5">Half Order</option>
+              <option value="0.1">Zero Order</option>
             </select>
           </div>
           
@@ -452,7 +391,7 @@ function PFR() {
             >
               <option value="1">First Order</option>
               <option value="2">Second Order</option>
-              <option value="0.5">Half Order</option>
+              <option value="0.1">Zero Order</option>
             </select>
           </div>
           
@@ -492,201 +431,6 @@ function PFR() {
     </div>
   )
 
-  const renderTemperatureProfileCalculator = () => (
-    <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-      <h2 className="text-2xl font-bold text-blue-900 mb-6">Calculate Temperature Profile</h2>
-      
-      <form onSubmit={calculateTemperatureProfile} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label htmlFor="initialConcentration" className="block text-sm font-medium text-gray-700 mb-1">
-              Initial Concentration ({getUnit('concentration')})
-            </label>
-            <input
-              type="number"
-              id="initialConcentration"
-              name="initialConcentration"
-              value={formData.initialConcentration}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter initial concentration"
-              step="0.01"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="flowRate" className="block text-sm font-medium text-gray-700 mb-1">
-              Flow Rate ({getUnit('flowRate')})
-            </label>
-            <input
-              type="number"
-              id="flowRate"
-              name="flowRate"
-              value={formData.flowRate}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter flow rate"
-              step="0.1"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="volume" className="block text-sm font-medium text-gray-700 mb-1">
-              Reactor Volume ({getUnit('volume')})
-            </label>
-            <input
-              type="number"
-              id="volume"
-              name="volume"
-              value={formData.volume}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter reactor volume"
-              step="1"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="rateConstant" className="block text-sm font-medium text-gray-700 mb-1">
-              Rate Constant ({getUnit('rateConstant')})
-            </label>
-            <input
-              type="number"
-              id="rateConstant"
-              name="rateConstant"
-              value={formData.rateConstant}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter rate constant"
-              step="0.0001"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="reactionOrder" className="block text-sm font-medium text-gray-700 mb-1">
-              Reaction Order
-            </label>
-            <select
-              id="reactionOrder"
-              name="reactionOrder"
-              value={formData.reactionOrder}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              required
-            >
-              <option value="1">First Order</option>
-              <option value="2">Second Order</option>
-              <option value="0.5">Half Order</option>
-            </select>
-          </div>
-          
-          <div>
-            <label htmlFor="temperature" className="block text-sm font-medium text-gray-700 mb-1">
-              Initial Temperature ({getUnit('temperature')})
-            </label>
-            <input
-              type="number"
-              id="temperature"
-              name="temperature"
-              value={formData.temperature}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter temperature"
-              step="0.1"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="heatOfReaction" className="block text-sm font-medium text-gray-700 mb-1">
-              Heat of Reaction ({getUnit('heatOfReaction')})
-            </label>
-            <input
-              type="number"
-              id="heatOfReaction"
-              name="heatOfReaction"
-              value={formData.heatOfReaction}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter heat of reaction"
-              step="1"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="heatCapacity" className="block text-sm font-medium text-gray-700 mb-1">
-              Heat Capacity ({getUnit('heatCapacity')})
-            </label>
-            <input
-              type="number"
-              id="heatCapacity"
-              name="heatCapacity"
-              value={formData.heatCapacity}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter heat capacity"
-              step="0.1"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="heatTransferCoefficient" className="block text-sm font-medium text-gray-700 mb-1">
-              Heat Transfer Coefficient ({getUnit('heatTransferCoefficient')})
-            </label>
-            <input
-              type="number"
-              id="heatTransferCoefficient"
-              name="heatTransferCoefficient"
-              value={formData.heatTransferCoefficient}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter heat transfer coefficient"
-              step="10"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="coolingTemperature" className="block text-sm font-medium text-gray-700 mb-1">
-              Cooling Temperature ({getUnit('temperature')})
-            </label>
-            <input
-              type="number"
-              id="coolingTemperature"
-              name="coolingTemperature"
-              value={formData.coolingTemperature}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter cooling temperature"
-              step="0.1"
-              required
-            />
-          </div>
-        </div>
-        
-        {error && (
-          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
-            <p className="text-red-700">{error}</p>
-          </div>
-        )}
-        
-        <div className="flex justify-center">
-          <button
-            type="submit"
-            className="bg-blue-900 text-white px-6 py-3 rounded-md hover:bg-blue-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Calculate Temperature Profile
-          </button>
-        </div>
-      </form>
-    </div>
-  )
 
   const renderRequiredVolumeCalculator = () => (
     <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
@@ -759,7 +503,7 @@ function PFR() {
             >
               <option value="1">First Order</option>
               <option value="2">Second Order</option>
-              <option value="0.5">Half Order</option>
+              <option value="0.1">Zero Order</option>
             </select>
           </div>
           
@@ -939,14 +683,6 @@ function PFR() {
             }`}
           >
             Reaction Rate
-          </button>
-          <button
-            onClick={() => setActiveTab('temperatureProfile')}
-            className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
-              activeTab === 'temperatureProfile' ? 'bg-blue-800' : 'hover:bg-blue-800'
-            }`}
-          >
-            Temperature Profile
           </button>
           <button
             onClick={() => setActiveTab('requiredVolume')}

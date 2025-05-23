@@ -5,9 +5,12 @@ import { unitFactors } from '../components/units'
 function CSTR() {
   const [activeTab, setActiveTab] = useState('conversion')
   const [unitSystem, setUnitSystem] = useState('SI') // Default to SI units
+  const [reactionType, setReactionType] = useState('a_to_b') // Default to A -> B
   const [formData, setFormData] = useState({
-    initialConcentration: '1.0',
-    flowRate: '10',
+    flowRateA: '10',
+    flowRateB: '10',
+    flowRateC: '10',
+    flowRateD: '10',
     volume: '100',
     rateConstant: '0.1',
     reactionOrder: '1', // Default to first order
@@ -19,10 +22,17 @@ function CSTR() {
     heatCapacity: '4.2',
     heatTransferCoefficient: '100',
     coolingTemperature: '20',
+    stoichiometryA: '1',
+    stoichiometryB: '1',
+    stoichiometryC: '1',
+    stoichiometryD: '1',
   })
 
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
+  const [phase, setPhase] = useState('liquid')
+  const [isothermal, setIsothermal] = useState(true)
+  const [pressureDrop, setPressureDrop] = useState(false)
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -65,52 +75,81 @@ function CSTR() {
     
     try {
       const {
-        initialConcentration,
-        flowRate,
+        flowRateA,
+        flowRateB,
+        flowRateC,
+        flowRateD,
         volume,
         rateConstant,
         reactionOrder,
-        temperature
+        temperature,
+        pressure,
+        stoichiometryA,
+        stoichiometryB,
+        stoichiometryC,
+        stoichiometryD,
       } = formData
 
-      // Convert inputs to numbers
-      const C0 = parseFloat(initialConcentration)
-      const F = parseFloat(flowRate)
+      const Fa = parseFloat(flowRateA)
+      const Fb = parseFloat(flowRateB)
+      const Fc = parseFloat(flowRateC)
+      const Fd = parseFloat(flowRateD)
       const V = parseFloat(volume)
       const k = parseFloat(rateConstant)
       const n = parseFloat(reactionOrder)
       const T = parseFloat(temperature)
+      const P = parseFloat(pressure)
+      const R = 0.08206 // L·atm/mol·K
+      const vA = parseFloat(stoichiometryA)
+      const vB = parseFloat(stoichiometryB)
+      const vC = parseFloat(stoichiometryC)
+      const vD = parseFloat(stoichiometryD)
+      
 
       // Validate inputs
-      if (isNaN(C0) || isNaN(F) || isNaN(V) || isNaN(k) || isNaN(n) || isNaN(T)) {
-        throw new Error('Please enter valid numbers for all fields')
-      }
-
-      if (C0 <= 0 || F <= 0 || V <= 0 || k <= 0 || n <= 0 || T <= 0) {
-        throw new Error('All values must be positive numbers')
-      }
-
-      // Calculate residence time
-      const tau = V / F
-
-      // Calculate conversion based on reaction order
+      if ([Fa, Fb, Fc, Fd, V, k, n, T, P, R, vA, vB, vC, vD].some(x => isNaN(x) || x < 0)) throw new Error('Please enter valid numbers for all fields')
+      let tau
       let conversion
-      if (n === 1) {
-        // First order reaction
-        conversion = k * tau / (1 + k * tau)
-      } else {
-        // Other reaction orders
-        // For CSTR: X = 1 - (1 / (1 + k * tau * C0^(n-1)))
-        conversion = 1 - (1 / (1 + k * tau * Math.pow(C0, n - 1)))
+      let finalFlowRateA
+      let finalFlowRateB
+      let finalFlowRateC
+      let finalFlowRateD  
+      tau = V/Fa
+      conversion = (tau * k)/(1+(tau * k))
+      if (conversion > 1) {
+        throw new Error('Conversion cannot exceed 100%. Please check your input values.');
       }
-
-      // Calculate final concentration
-      const finalConcentration = C0 * (1 - conversion)
+      
+      finalFlowRateA = Fa * (1 - conversion)
+        
+      switch (reactionType) {
+        case 'a_to_b':
+          finalFlowRateB = Fb + (vB/vA) * Fa * conversion
+          break
+        case 'a_to_b_plus_c':
+          finalFlowRateB = Fb + (vB/vA) * Fa * conversion
+          finalFlowRateC = Fc + (vC/vA) * Fa * conversion
+          break
+        case 'a_plus_b_to_c':
+          finalFlowRateB = Fb - (vB/vA) * Fa * conversion
+          finalFlowRateC = Fc + (vC/vA) * Fa * conversion
+          break
+        case 'a_plus_b_to_c_plus_d':
+          finalFlowRateB = Fb - (vB/vA) * Fa * conversion
+          finalFlowRateC = Fc + (vC/vA) * Fa * conversion
+          finalFlowRateC = Fc + (vC/vA) * Fa * conversion
+          finalFlowRateD = Fd + (vD/vA) * Fa * conversion
+          break
+      }
 
       setResult({
         conversion: (conversion * 100).toFixed(2),
-        finalConcentration: finalConcentration.toFixed(4),
-        residenceTime: tau.toFixed(2)
+        finalFlowRateA: finalFlowRateA.toFixed(4),
+        finalFlowRateB: finalFlowRateB?.toFixed(4),
+        finalFlowRateC: finalFlowRateC?.toFixed(4),
+        finalFlowRateD: finalFlowRateD?.toFixed(4),
+        // residenceTime: tau.toFixed(2),
+        // scenario: `${phase}, ${isothermal ? 'Isothermal' : 'Non-Isothermal'}, ${pressureDrop ? 'With Pressure Drop' : 'No Pressure Drop'}`
       })
     } catch (err) {
       setError(err.message)
@@ -158,67 +197,7 @@ function CSTR() {
     }
   }
 
-  const calculateTemperatureProfile = (e) => {
-    e.preventDefault()
-    setError('')
-    
-    try {
-      const {
-        initialConcentration,
-        flowRate,
-        volume,
-        rateConstant,
-        reactionOrder,
-        temperature,
-        heatOfReaction,
-        heatCapacity,
-        heatTransferCoefficient,
-        coolingTemperature
-      } = formData
-
-      // Convert inputs to numbers
-      const C0 = parseFloat(initialConcentration)
-      const F = parseFloat(flowRate)
-      const V = parseFloat(volume)
-      const k = parseFloat(rateConstant)
-      const n = parseFloat(reactionOrder)
-      const T0 = parseFloat(temperature)
-      const Hr = parseFloat(heatOfReaction)
-      const Cp = parseFloat(heatCapacity)
-      const U = parseFloat(heatTransferCoefficient)
-      const Tc = parseFloat(coolingTemperature)
-
-      // Validate inputs
-      if (isNaN(C0) || isNaN(F) || isNaN(V) || isNaN(k) || isNaN(n) || isNaN(T0) || 
-          isNaN(Hr) || isNaN(Cp) || isNaN(U) || isNaN(Tc)) {
-        throw new Error('Please enter valid numbers for all fields')
-      }
-
-      // Calculate residence time
-      const tau = V / F
-
-      // Calculate conversion (simplified for temperature profile)
-      const conversion = k * tau / (1 + k * tau)
-
-      // Calculate temperature change
-      // For CSTR: Q = F*rho*Cp*(T - T0) = -Hr*F*C0*X - U*A*(T - Tc)
-      // Simplified approach:
-      const reactionHeat = Hr * C0 * conversion
-      const coolingHeat = U * (T0 - Tc) * tau / 60 // Convert to hours
-      
-      const finalTemperature = T0 + (reactionHeat / (Cp * 1000)) - (coolingHeat / (Cp * 1000))
-
-      setResult({
-        initialTemperature: T0.toFixed(1),
-        finalTemperature: finalTemperature.toFixed(1),
-        temperatureChange: (finalTemperature - T0).toFixed(1),
-        units: getUnit('temperature')
-      })
-    } catch (err) {
-      setError(err.message)
-      setResult(null)
-    }
-  }
+ 
 
   const calculateRequiredVolume = (e) => {
     e.preventDefault()
@@ -271,46 +250,222 @@ function CSTR() {
     }
   }
 
+  const renderScenarioSelectors = () => (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Phase</label>
+        <select value={phase} onChange={e => setPhase(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-md">
+          <option value="liquid">Liquid</option>
+          <option value="gas">Gas</option>
+        </select>
+      </div>
+      {phase === 'gas' && (
+  <>
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">Isothermal?</label>
+      <select
+        value={isothermal}
+        onChange={e => setIsothermal(e.target.value === 'true')}
+        className="w-full px-4 py-2 border border-gray-300 rounded-md"
+      >
+        <option value="true">Yes</option>
+        <option value="false">No</option>
+      </select>
+    </div>
+
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">Pressure Drop?</label>
+      <select
+        value={pressureDrop}
+        onChange={e => setPressureDrop(e.target.value === 'true')}
+        className="w-full px-4 py-2 border border-gray-300 rounded-md"
+      >
+        <option value="false">No</option>
+        <option value="true">Yes</option>
+      </select>
+    </div>
+  </>
+)}
+
+    </div>
+  )
+
   const renderConversionCalculator = () => (
     <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
       <h2 className="text-2xl font-bold text-blue-900 mb-6">Calculate CSTR Conversion</h2>
       
       <form onSubmit={calculateConversion} className="space-y-6">
+        {renderScenarioSelectors()}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label htmlFor="initialConcentration" className="block text-sm font-medium text-gray-700 mb-1">
-              Initial Concentration ({getUnit('concentration')})
+            <label htmlFor="reactionType" className="block text-sm font-medium text-gray-700 mb-2">
+              Reaction Type
+            </label>
+            <select
+              id="reactionType"
+              value={reactionType}
+              onChange={(e) => setReactionType(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              required
+            >
+              <option value="a_to_b">aA → bB</option>
+              <option value="a_to_b_plus_c">aA → bB + cC</option>
+              <option value="a_plus_b_to_c">aA + bB → cC</option>
+              <option value="a_plus_b_to_c_plus_d">aA + bB → cC + dD</option>
+            </select>
+          </div>    
+          {/* <div>
+            <label htmlFor="reactionOrder" className="block text-sm font-medium text-gray-700 mb-1">
+              Reaction Order
             </label>
             <input
               type="number"
-              id="initialConcentration"
-              name="initialConcentration"
-              value={formData.initialConcentration}
+              id="reactionOrder"
+              name="reactionOrder"
+              value={formData.reactionOrder}
               onChange={handleInputChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter initial concentration"
+              placeholder="Enter reaction order"
               step="0.01"
+              min="0"
+              required
+            />
+          </div> */}
+
+          {/* Stoichiometry Section */}
+          <div>
+            <label htmlFor="stoichiometryA" className="block text-sm font-medium text-gray-700 mb-1">
+              Stoichiometry of A
+            </label>
+            <input
+              type="number"
+              id="stoichiometryA"
+              name="stoichiometryA"
+              value={formData.stoichiometryA}
+              onChange={handleInputChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500"
+              min="1"
               required
             />
           </div>
-          
           <div>
-            <label htmlFor="flowRate" className="block text-sm font-medium text-gray-700 mb-1">
-              Flow Rate ({getUnit('flowRate')})
+            <label htmlFor="flowRateA" className="block text-sm font-medium text-gray-700 mb-1">
+              Flow Rate of A  ({getUnit('flowRate')})
             </label>
             <input
               type="number"
-              id="flowRate"
-              name="flowRate"
-              value={formData.flowRate}
+              id="flowRateA"
+              name="flowRateA"
+              value={formData.flowRateA}
               onChange={handleInputChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter flow rate"
+              placeholder="Enter flow rate of A"
               step="0.1"
               required
             />
           </div>
-          
+          <div>
+              <label htmlFor="stoichiometryB" className="block text-sm font-medium text-gray-700 mb-1">
+                Stoichiometry of B
+              </label>
+              <input
+                type="number"
+                id="stoichiometryB"
+                name="stoichiometryB"
+                value={formData.stoichiometryB}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500"
+                min="1"
+              />
+            </div>
+            <div>
+            <label htmlFor="flowRateB" className="block text-sm font-medium text-gray-700 mb-1">
+              Flow Rate of B  ({getUnit('flowRate')})
+            </label>
+            <input
+              type="number"
+              id="flowRateB"
+              name="flowRateB"
+              value={formData.flowRateB}
+              onChange={handleInputChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Enter flow rate of B"
+              step="0.1"
+              required
+            />
+          </div>
+          {(reactionType === 'a_to_b_plus_c' || reactionType === 'a_plus_b_to_c' || reactionType === 'a_plus_b_to_c_plus_d') && (
+            <>
+            <div>
+              <label htmlFor="stoichiometryC" className="block text-sm font-medium text-gray-700 mb-1">
+                Stoichiometry of C
+              </label>
+              <input
+                type="number"
+                id="stoichiometryC"
+                name="stoichiometryC"
+                value={formData.stoichiometryC}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                min="1"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="flowRateC" className="block text-sm font-medium text-gray-700 mb-1">
+              Flow Rate of C  ({getUnit('flowRate')})
+            </label>
+            <input
+              type="number"
+              id="flowRateC"
+              name="flowRateC"
+              value={formData.flowRateC}
+              onChange={handleInputChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Enter flow rate of C"
+              step="0.1"
+              required
+            />
+            </div>
+            </>
+          )}
+
+          {reactionType === 'a_plus_b_to_c_plus_d' && (
+            <>
+            <div>
+              <label htmlFor="stoichiometryD" className="block text-sm font-medium text-gray-700 mb-1">
+                Stoichiometry of D
+              </label>
+              <input
+                type="number"
+                id="stoichiometryD"
+                name="stoichiometryD"
+                value={formData.stoichiometryD}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                min="1"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="flowRateD" className="block text-sm font-medium text-gray-700 mb-1">
+              Flow Rate of D  ({getUnit('flowRate')})
+            </label>
+            <input
+              type="number"
+              id="flowRateD"
+              name="flowRateD"
+              value={formData.flowRateD}
+              onChange={handleInputChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Enter flow rate of D"
+              step="0.1"
+              required
+            />
+            </div>
+            </>
+            
+          )}
           <div>
             <label htmlFor="volume" className="block text-sm font-medium text-gray-700 mb-1">
               Reactor Volume ({getUnit('volume')})
@@ -341,41 +496,6 @@ function CSTR() {
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               placeholder="Enter rate constant"
               step="0.0001"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="reactionOrder" className="block text-sm font-medium text-gray-700 mb-1">
-              Reaction Order
-            </label>
-            <select
-              id="reactionOrder"
-              name="reactionOrder"
-              value={formData.reactionOrder}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              required
-            >
-              <option value="1">First Order</option>
-              <option value="2">Second Order</option>
-              <option value="0.5">Half Order</option>
-            </select>
-          </div>
-          
-          <div>
-            <label htmlFor="temperature" className="block text-sm font-medium text-gray-700 mb-1">
-              Temperature ({getUnit('temperature')})
-            </label>
-            <input
-              type="number"
-              id="temperature"
-              name="temperature"
-              value={formData.temperature}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter temperature"
-              step="0.1"
               required
             />
           </div>
@@ -443,18 +563,18 @@ function CSTR() {
             <label htmlFor="reactionOrder" className="block text-sm font-medium text-gray-700 mb-1">
               Reaction Order
             </label>
-            <select
+            <input
+              type="number"
               id="reactionOrder"
               name="reactionOrder"
               value={formData.reactionOrder}
               onChange={handleInputChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Enter reaction order"
+              step="0.01"
+              min="0"
               required
-            >
-              <option value="1">First Order</option>
-              <option value="2">Second Order</option>
-              <option value="0.5">Half Order</option>
-            </select>
+            />
           </div>
           
           <div>
@@ -493,201 +613,6 @@ function CSTR() {
     </div>
   )
 
-  const renderTemperatureProfileCalculator = () => (
-    <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-      <h2 className="text-2xl font-bold text-blue-900 mb-6">Calculate Temperature Profile</h2>
-      
-      <form onSubmit={calculateTemperatureProfile} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label htmlFor="initialConcentration" className="block text-sm font-medium text-gray-700 mb-1">
-              Initial Concentration ({getUnit('concentration')})
-            </label>
-            <input
-              type="number"
-              id="initialConcentration"
-              name="initialConcentration"
-              value={formData.initialConcentration}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter initial concentration"
-              step="0.01"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="flowRate" className="block text-sm font-medium text-gray-700 mb-1">
-              Flow Rate ({getUnit('flowRate')})
-            </label>
-            <input
-              type="number"
-              id="flowRate"
-              name="flowRate"
-              value={formData.flowRate}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter flow rate"
-              step="0.1"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="volume" className="block text-sm font-medium text-gray-700 mb-1">
-              Reactor Volume ({getUnit('volume')})
-            </label>
-            <input
-              type="number"
-              id="volume"
-              name="volume"
-              value={formData.volume}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter reactor volume"
-              step="1"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="rateConstant" className="block text-sm font-medium text-gray-700 mb-1">
-              Rate Constant ({getUnit('rateConstant')})
-            </label>
-            <input
-              type="number"
-              id="rateConstant"
-              name="rateConstant"
-              value={formData.rateConstant}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter rate constant"
-              step="0.0001"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="reactionOrder" className="block text-sm font-medium text-gray-700 mb-1">
-              Reaction Order
-            </label>
-            <select
-              id="reactionOrder"
-              name="reactionOrder"
-              value={formData.reactionOrder}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              required
-            >
-              <option value="1">First Order</option>
-              <option value="2">Second Order</option>
-              <option value="0.5">Half Order</option>
-            </select>
-          </div>
-          
-          <div>
-            <label htmlFor="temperature" className="block text-sm font-medium text-gray-700 mb-1">
-              Initial Temperature ({getUnit('temperature')})
-            </label>
-            <input
-              type="number"
-              id="temperature"
-              name="temperature"
-              value={formData.temperature}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter temperature"
-              step="0.1"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="heatOfReaction" className="block text-sm font-medium text-gray-700 mb-1">
-              Heat of Reaction ({getUnit('heatOfReaction')})
-            </label>
-            <input
-              type="number"
-              id="heatOfReaction"
-              name="heatOfReaction"
-              value={formData.heatOfReaction}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter heat of reaction"
-              step="1"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="heatCapacity" className="block text-sm font-medium text-gray-700 mb-1">
-              Heat Capacity ({getUnit('heatCapacity')})
-            </label>
-            <input
-              type="number"
-              id="heatCapacity"
-              name="heatCapacity"
-              value={formData.heatCapacity}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter heat capacity"
-              step="0.1"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="heatTransferCoefficient" className="block text-sm font-medium text-gray-700 mb-1">
-              Heat Transfer Coefficient ({getUnit('heatTransferCoefficient')})
-            </label>
-            <input
-              type="number"
-              id="heatTransferCoefficient"
-              name="heatTransferCoefficient"
-              value={formData.heatTransferCoefficient}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter heat transfer coefficient"
-              step="10"
-              required
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="coolingTemperature" className="block text-sm font-medium text-gray-700 mb-1">
-              Cooling Temperature ({getUnit('temperature')})
-            </label>
-            <input
-              type="number"
-              id="coolingTemperature"
-              name="coolingTemperature"
-              value={formData.coolingTemperature}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter cooling temperature"
-              step="0.1"
-              required
-            />
-          </div>
-        </div>
-        
-        {error && (
-          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
-            <p className="text-red-700">{error}</p>
-          </div>
-        )}
-        
-        <div className="flex justify-center">
-          <button
-            type="submit"
-            className="bg-blue-900 text-white px-6 py-3 rounded-md hover:bg-blue-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Calculate Temperature Profile
-          </button>
-        </div>
-      </form>
-    </div>
-  )
 
   const renderRequiredVolumeCalculator = () => (
     <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
@@ -750,18 +675,18 @@ function CSTR() {
             <label htmlFor="reactionOrder" className="block text-sm font-medium text-gray-700 mb-1">
               Reaction Order
             </label>
-            <select
+            <input
+              type="number"
               id="reactionOrder"
               name="reactionOrder"
               value={formData.reactionOrder}
               onChange={handleInputChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Enter reaction order"
+              step="0.01"
+              min="0"
               required
-            >
-              <option value="1">First Order</option>
-              <option value="2">Second Order</option>
-              <option value="0.5">Half Order</option>
-            </select>
+            />
           </div>
           
           <div>
@@ -821,30 +746,52 @@ function CSTR() {
 
   const renderResults = () => {
     if (!result) return null
-    
+  
     return (
       <div className="bg-white rounded-xl shadow-lg p-8">
         <h2 className="text-2xl font-bold text-blue-900 mb-6">Results</h2>
-        
+  
         {activeTab === 'conversion' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+  
             <div className="bg-blue-50 p-6 rounded-lg">
               <h3 className="text-lg font-medium text-blue-900 mb-2">Conversion</h3>
               <p className="text-3xl font-bold text-blue-900">{result.conversion}%</p>
               <p className="text-sm text-gray-600 mt-2">Percentage of reactant converted to product</p>
             </div>
+  
+            {result.finalFlowRateA !== undefined && (
+              <div className="bg-blue-50 p-6 rounded-lg">
+                <h3 className="text-lg font-medium text-blue-900 mb-2">Final Flow Rate of A</h3>
+                <p className="text-3xl font-bold text-blue-900">{result.finalFlowRateA} {getUnit('flowRate')}</p>
+                <p className="text-sm text-gray-600 mt-2">Flow rate of reactant A</p>
+              </div>
+            )}
+  
+            {result.finalFlowRateB !== undefined && (
+              <div className="bg-blue-50 p-6 rounded-lg">
+                <h3 className="text-lg font-medium text-blue-900 mb-2">Final Flow Rate of B</h3>
+                <p className="text-3xl font-bold text-blue-900">{result.finalFlowRateB} {getUnit('flowRate')}</p>
+                <p className="text-sm text-gray-600 mt-2">Flow rate of component B</p>
+              </div>
+            )}
+  
+            {result.finalFlowRateC !== undefined && (
+              <div className="bg-blue-50 p-6 rounded-lg">
+                <h3 className="text-lg font-medium text-blue-900 mb-2">Final Flow Rate of C</h3>
+                <p className="text-3xl font-bold text-blue-900">{result.finalFlowRateC} {getUnit('flowRate')}</p>
+                <p className="text-sm text-gray-600 mt-2">Flow rate of component C</p>
+              </div>
+            )}
+  
+            {result.finalFlowRateD !== undefined && (
+              <div className="bg-blue-50 p-6 rounded-lg">
+                <h3 className="text-lg font-medium text-blue-900 mb-2">Final Flow Rate of D</h3>
+                <p className="text-3xl font-bold text-blue-900">{result.finalFlowRateD} {getUnit('flowRate')}</p>
+                <p className="text-sm text-gray-600 mt-2">Flow rate of component D</p>
+              </div>
+            )}
             
-            <div className="bg-blue-50 p-6 rounded-lg">
-              <h3 className="text-lg font-medium text-blue-900 mb-2">Final Concentration</h3>
-              <p className="text-3xl font-bold text-blue-900">{result.finalConcentration} {getUnit('concentration')}</p>
-              <p className="text-sm text-gray-600 mt-2">Concentration of reactant remaining</p>
-            </div>
-            
-            <div className="bg-blue-50 p-6 rounded-lg">
-              <h3 className="text-lg font-medium text-blue-900 mb-2">Residence Time</h3>
-              <p className="text-3xl font-bold text-blue-900">{result.residenceTime} {getUnit('time')}</p>
-              <p className="text-sm text-gray-600 mt-2">Time spent in the reactor</p>
-            </div>
           </div>
         )}
         
@@ -857,28 +804,7 @@ function CSTR() {
             </div>
           </div>
         )}
-        
-        {activeTab === 'temperatureProfile' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-blue-50 p-6 rounded-lg">
-              <h3 className="text-lg font-medium text-blue-900 mb-2">Initial Temperature</h3>
-              <p className="text-3xl font-bold text-blue-900">{result.initialTemperature} {result.units}</p>
-              <p className="text-sm text-gray-600 mt-2">Starting temperature of the reactor</p>
-            </div>
-            
-            <div className="bg-blue-50 p-6 rounded-lg">
-              <h3 className="text-lg font-medium text-blue-900 mb-2">Final Temperature</h3>
-              <p className="text-3xl font-bold text-blue-900">{result.finalTemperature} {result.units}</p>
-              <p className="text-sm text-gray-600 mt-2">Temperature after reaction</p>
-            </div>
-            
-            <div className="bg-blue-50 p-6 rounded-lg">
-              <h3 className="text-lg font-medium text-blue-900 mb-2">Temperature Change</h3>
-              <p className="text-3xl font-bold text-blue-900">{result.temperatureChange} {result.units}</p>
-              <p className="text-sm text-gray-600 mt-2">Change in temperature during reaction</p>
-            </div>
-          </div>
-        )}
+
         
         {activeTab === 'requiredVolume' && (
           <div className="grid grid-cols-1 gap-6">
@@ -942,14 +868,6 @@ function CSTR() {
             Reaction Rate
           </button>
           <button
-            onClick={() => setActiveTab('temperatureProfile')}
-            className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
-              activeTab === 'temperatureProfile' ? 'bg-blue-800' : 'hover:bg-blue-800'
-            }`}
-          >
-            Temperature Profile
-          </button>
-          <button
             onClick={() => setActiveTab('requiredVolume')}
             className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
               activeTab === 'requiredVolume' ? 'bg-blue-800' : 'hover:bg-blue-800'
@@ -990,7 +908,6 @@ function CSTR() {
                 >
                   <option value="conversion">Conversion</option>
                   <option value="reactionRate">Reaction Rate</option>
-                  <option value="temperatureProfile">Temperature</option>
                   <option value="requiredVolume">Required Volume</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
@@ -1006,7 +923,6 @@ function CSTR() {
         <main className="p-6">
           {activeTab === 'conversion' && renderConversionCalculator()}
           {activeTab === 'reactionRate' && renderReactionRateCalculator()}
-          {activeTab === 'temperatureProfile' && renderTemperatureProfileCalculator()}
           {activeTab === 'requiredVolume' && renderRequiredVolumeCalculator()}
           
           {renderResults()}

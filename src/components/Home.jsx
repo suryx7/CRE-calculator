@@ -19,7 +19,7 @@ function Home() {
                 <div className="flex-1">
                   <h3 className="text-2xl font-bold text-blue-900 mb-3">Batch Reactor</h3>
                   <p className="text-gray-600 leading-relaxed">This is a closed system where reactants are added to a vessel, allowed to react for a certain period (batch time), and then the products are removed. There's no inflow or outflow of reactants or products during the reaction. Offers flexibility in handling small-scale reactions, easy to control reaction conditions, and suitable for reactions requiring multiple steps or where precise control is necessary. Commonly used in pharmaceuticals, specialty chemicals, and research laboratories for small-scale synthesis, process development, and optimization.</p>
-                </div>
+            </div>
               </div>
             </Link>
             <Link to="/cstr" className="no-underline">
@@ -28,7 +28,7 @@ function Home() {
                 <div className="flex-1">
                   <h3 className="text-2xl font-bold text-blue-900 mb-3">Continuous Stirred Tank Reactor</h3>
                   <p className="text-gray-600 leading-relaxed">It is a type of reactor where reactants are continuously fed into a well-mixed tank reactor and products are continuously removed. It's characterized by uniform composition throughout the reactor. Offers good temperature and concentration control due to uniform mixing. Residence time distribution is relatively broad, meaning reactants spend varying amounts of time in the reactor. Commonly used in large-scale industrial processes like chemical production, wastewater treatment, and fermentation.</p>
-                </div>
+            </div>
               </div>
             </Link>
             <Link to="/pfr" className="no-underline">
@@ -37,7 +37,7 @@ function Home() {
                 <div className="flex-1">
                   <h3 className="text-2xl font-bold text-blue-900 mb-3">Plug Flow Reactor</h3>
                   <p className="text-gray-600 leading-relaxed">A type of reactor where reactants flow through a tube-like vessel with no mixing in the radial direction. The composition of the reaction mixture changes continuously along the length of the reactor. Offers high conversion efficiency and precise control over reaction conditions. Commonly used in large-scale chemical production, petroleum refining, and gas-phase reactions.</p>
-                </div>
+            </div>
               </div>
             </Link>
             <Link to="/packed-bed-reactor" className="no-underline">
@@ -54,7 +54,7 @@ function Home() {
       </main>
 
       <Footer />
-    </div>
+  </div>
   )
 }
 
